@@ -1,20 +1,168 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Phone, MessageCircle, Users, Sparkles } from "lucide-react";
+import { Phone, MessageCircle, Users, Sparkles, X } from "lucide-react";
+
+import { FormEvent, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+type FormStatus = "idle" | "success" | "error";
 
 const Index = () => {
+  const [ctaEmail, setCtaEmail] = useState("");
+  const [ctaLoading, setCtaLoading] = useState(false);
+  const [ctaStatus, setCtaStatus] = useState<FormStatus>("idle");
+  const [ctaMessage, setCtaMessage] = useState("");
 
+  const [modalEmail, setModalEmail] = useState("");
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalStatus, setModalStatus] = useState<FormStatus>("idle");
+  const [modalMessage, setModalMessage] = useState("");
+  const [showWaitlistModal, setShowWaitlistModal] = useState(false);
+
+  const submitWaitlist = async (
+    emailValue: string,
+    setEmailValue: (value: string) => void,
+    setLoadingState: (value: boolean) => void,
+    setStatusState: (value: FormStatus) => void,
+    setMessageState: (value: string) => void
+  ) => {
+    if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      setStatusState("error");
+      setMessageState("Please enter a valid email.");
+      return false;
+    }
+
+    setLoadingState(true);
+    setStatusState("idle");
+    setMessageState("");
+
+    if (!supabase) {
+      setStatusState("error");
+      setMessageState("Waitlist backend isn't configured yet.");
+      setLoadingState(false);
+      return false;
+    }
+
+    const { error } = await (supabase as any)
+      .from("waitlist")
+      .insert({ email: emailValue });
+
+    if (error) {
+      setStatusState("error");
+      setMessageState("Failed to join. Please try again later.");
+      setLoadingState(false);
+      return false;
+    }
+
+    setStatusState("success");
+    setMessageState("Thanks! You're on the list.");
+    setEmailValue("");
+    setLoadingState(false);
+    return true;
+  };
+
+  const handleCtaSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    await submitWaitlist(
+      ctaEmail,
+      setCtaEmail,
+      setCtaLoading,
+      setCtaStatus,
+      setCtaMessage
+    );
+  };
+
+  const handleModalSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const success = await submitWaitlist(
+      modalEmail,
+      setModalEmail,
+      setModalLoading,
+      setModalStatus,
+      setModalMessage
+    );
+    if (success) {
+      setTimeout(() => {
+        setShowWaitlistModal(false);
+        setModalStatus("idle");
+        setModalMessage("");
+      }, 1500);
+    }
+  };
+
+  const closeModal = () => {
+    setShowWaitlistModal(false);
+    setModalMessage("");
+    setModalStatus("idle");
+    setModalLoading(false);
+  };
   return (
     <div className="min-h-screen bg-gradient-warm">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4 md:px-12">
         <div className="flex justify-between items-center max-w-7xl mx-auto">
-          <div className="text-sm font-medium tracking-wide">Voice Connect</div>
-          <Button variant="ghost" size="sm" className="text-sm">
+          <div className="text-sm font-medium tracking-wide">Echora</div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-sm"
+            onClick={() => setShowWaitlistModal(true)}
+          >
             Join the Waitlist
           </Button>
         </div>
       </nav>
+
+      {showWaitlistModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-6">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={closeModal}
+          />
+          <div className="relative z-[70] w-full max-w-md rounded-3xl bg-background p-8 shadow-2xl space-y-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
+                  Join the waitlist
+                </p>
+                <h3 className="text-3xl font-serif mt-2">Echora is almost here</h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                onClick={closeModal}
+                aria-label="Close waitlist popup"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <form onSubmit={handleModalSubmit} className="space-y-4">
+              <Input
+                type="email"
+                placeholder="you@email.com"
+                value={modalEmail}
+                onChange={(e) => setModalEmail(e.target.value)}
+                className="h-14 px-6 text-base rounded-2xl"
+              />
+              <Button
+                type="submit"
+                disabled={modalLoading}
+                className="w-full h-12 rounded-2xl text-base"
+              >
+                {modalLoading
+                  ? "Submitting..."
+                  : modalStatus === "success"
+                    ? "Joined!"
+                    : "Submit"}
+              </Button>
+            </form>
+            {modalMessage && (
+              <div className="text-sm text-muted-foreground">{modalMessage}</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section className="min-h-screen flex items-center justify-center px-6 md:px-12 pt-20">
@@ -69,7 +217,7 @@ const Index = () => {
             <p className="text-2xl md:text-3xl leading-relaxed">
               That's why we built
             </p>
-            <h2 className="text-7xl md:text-8xl font-serif italic">Voice Connect</h2>
+            <h2 className="text-7xl md:text-8xl font-serif italic">Echora</h2>
           </div>
           <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed max-w-2xl mx-auto">
             Your personal voice assistant that helps you navigate conversations with confidence and authenticity.
@@ -132,22 +280,35 @@ const Index = () => {
 
       {/* CTA Section */}
       <section className="min-h-screen flex items-center justify-center px-6 md:px-12">
-        <div className="max-w-4xl mx-auto text-center space-y-12">
+        <div className="max-w-4xl mx-auto text-center space-y-12" id="waitlist">
           <h2 className="text-5xl md:text-7xl lg:text-8xl font-normal leading-tight">
             A new era of personal software is here.
           </h2>
           <div className="flex flex-col items-center gap-4 max-w-xl mx-auto">
-            <Input 
-              type="email" 
-              placeholder="Your email" 
-              className="h-16 px-8 text-lg rounded-full bg-background/50 backdrop-blur-sm border border-muted-foreground/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.08)] hover:shadow-[0_12px_40px_0_rgba(0,0,0,0.12)] hover:border-muted-foreground/20 transition-all duration-300"
-            />
-            <Button 
-              size="lg" 
-              className="h-14 px-12 text-lg rounded-full bg-foreground text-background hover:bg-foreground/90 shadow-[0_8px_32px_0_rgba(0,0,0,0.12)] hover:shadow-[0_12px_40px_0_rgba(0,0,0,0.16)] hover:scale-105 transition-all duration-300"
-            >
-              Join waitlist
-            </Button>
+            <form onSubmit={handleCtaSubmit} className="w-full flex flex-col items-center gap-4">
+              <Input
+                type="email"
+                placeholder="Your email"
+                value={ctaEmail}
+                onChange={(e) => setCtaEmail(e.target.value)}
+                className="h-16 px-8 text-lg rounded-full bg-background/50 backdrop-blur-sm border border-muted-foreground/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.08)] hover:shadow-[0_12px_40px_0_rgba(0,0,0,0.12)] hover:border-muted-foreground/20 transition-all duration-300 w-full"
+              />
+              <Button
+                size="lg"
+                type="submit"
+                disabled={ctaLoading}
+                className="h-14 px-12 text-lg rounded-full bg-foreground text-background hover:bg-foreground/90 shadow-[0_8px_32px_0_rgba(0,0,0,0.12)] hover:shadow-[0_12px_40px_0_rgba(0,0,0,0.16)] hover:scale-105 transition-all duration-300"
+              >
+                {ctaLoading
+                  ? "Submitting..."
+                  : ctaStatus === "success"
+                    ? "Joined!"
+                    : "Join waitlist"}
+              </Button>
+            </form>
+            {ctaMessage && (
+              <div className="text-sm text-muted-foreground">{ctaMessage}</div>
+            )}
           </div>
         </div>
       </section>
@@ -155,7 +316,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="px-6 py-12 md:px-12">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-          <div>© 2024 Voice Connect. All rights reserved.</div>
+          <div>© 2025 Echora. All rights reserved.</div>
           <div className="flex gap-6">
             <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors">Terms</a>
